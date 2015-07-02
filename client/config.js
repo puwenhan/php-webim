@@ -1,3 +1,3 @@
 var webim = {
-    'server' : 'ws://im.swoole.com:9503'
+    'server' : 'ws://192.168.30.70:9443'
 }

@@ -2,13 +2,14 @@
 namespace WebIM;
 use Swoole;
 
-class Server extends Swoole\Protocol\CometServer
+class Server_im extends Swoole\Protocol\CometServer
 {
     /**
      * @var Store\File;
      */
     protected $store;
-    protected $users;
+    protected $users;// 咨询用户
+    protected $servers;//服务人员
 
     const MESSAGE_MAX_LEN     = 1024; //单条消息不得超过1K
     const WORKER_HISTORY_ID   = 0;
@@ -148,21 +149,33 @@ HTML;
     {
         $info['name'] = $msg['name'];
         $info['avatar'] = $msg['avatar'];
-        //回复给登录用户
-        if ($msg['name'] == '微信用户') {
-            $msg['name'] .= $client_id;
+        if (isset($msg['cid'])) {
+            // 有这个人为是客服人员
+            $info['cid'] = $msg['cid'];
         }
+
+        //回复给登录用户 暂时这样考虑
+        if ($msg['name'] == '微信用户') {
+            $info['name'] .= $client_id;
+            $info['uid'] = $client_id;// 有uid人为是客户
+        }
+
+        
+
+        //把会话存起来,记录用户信息
+        if (isset($info['uid'])) {
+            $this->users[$client_id] = $info;
+        }else{
+            $this->servers[$client_id] = $info;
+        }
+
+        // 登陆成功
         $resMsg = array(
             'cmd' => 'login',
             'fd' => $client_id,
-            'name' => $msg['name'],
-            'avatar' => $msg['avatar'],
         );
 
-        //把会话存起来
-        $this->users[$client_id] = $resMsg;
-
-        $this->store->login($client_id, $resMsg);
+        $this->store->login($client_id, $info);
         $this->sendJson($client_id, $resMsg);
 
         //广播给其它在线用户

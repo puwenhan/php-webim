@@ -57,7 +57,7 @@ class File
         }
     }
 
-    function __construct($save_dir, $online_dir = '/dev/shm/swoole_webim/')
+    function __construct($save_dir, $online_dir = '/Users/will/PHP_projects/php-webim/wechat_online/')
     {
         $this->online_dir = $online_dir;
         $this->checkDir($this->online_dir, true);

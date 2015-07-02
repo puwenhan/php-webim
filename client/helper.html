@@ -31,16 +31,12 @@
             <div class="clear"></div>
         </div>
         <div id="notewrap" style="overflow:hidden">
-            <div id="wrap">
+            <div id="wrap" >
+                
+                <div class="top_content"><div id="top_content" class="operator"><table border="0" cellpadding="0" cellspacing="0" width="100%" height="100%"><tbody><tr><td align="center" valign="bottom"><img src="http://sf-ocs.sf-express.com:8080/live800/faces/8935_20150508144606627.JPG" style="display:block;"></td></tr></tbody></table></div></div>
+
                 <div id="history">
-                    <div class="top_content"><div id="top_content" class="operator">
-                        <img src="http://sf-ocs.sf-express.com:8080/live800/faces/8935_20150508145111282.JPG" style="display:block;">
-                    </div></div>
-                    
                 </div>
-            </div>
-            <div id="bwrap">
-                <div id="banner"></div>
             </div>
         </div>
         <div id="msg">
@@ -56,7 +52,7 @@
             <div id="enter_wrap">
                 <div id="ewrap">
                     <div id="enter" class="disable">
-                        <label>发送</label>
+                        <label onclick="sendMsg($('#inputbox').val(), 'text');">发送</label>
                     </div>
                 </div>
             </div>
@@ -76,5 +72,24 @@
         <script src="config.js" charset="utf-8"></script>
         <script src="static/js/comet.js" charset="utf-8"></script>
         <script src="static/js/wechat.js" charset="utf-8"></script>
+
+        <!-- /container -->
+        <div id="msg-template" style="display: none">
+            <div class="lim_systemTip lim_clearfloat" >
+            <div class="lim_bubble">
+            <div class="lim_infotip">
+            </div>
+            </div>
+            <div class="lim_tale"><div class="lim_time"></div></div>
+            </div>
+        </div>
+        <div id="msg-template1" style="display: none">
+            <div class="lim_visitor lim_clearfloat ">
+            <div class="lim_bubble">
+            <div class="lim_dot"></div>
+            </div>
+            <div class="lim_tale"></div><div class="lim_time"></div></div>
+        </div>
+        <!-- / -->
     </body>
 </html>

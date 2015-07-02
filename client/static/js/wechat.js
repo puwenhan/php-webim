@@ -36,9 +36,9 @@ function listenEvent() {
         console.log("connect webim server success.");
         //发送登录信息
         msg = new Object();
-        msg.cmd = 'wechat_up';
-        msg.name = '微信用户1';
-        msg.avatar = '';
+        msg.cmd = 'login';
+        msg.name = '微信用户';
+        msg.avatar = 'http://h.hiphotos.baidu.com/baike/c0%3Dbaike80%2C5%2C5%2C80%2C26/sign=f3d466c53f292df583cea447dd583705/8326cffc1e178a82de3bdc4af303738da877e8d1.jpg';
         ws.send($.toJSON(msg));
     };
 
@@ -51,17 +51,9 @@ function listenEvent() {
             client_id = $.evalJSON(e.data).fd;
             //获取在线列表
             ws.send($.toJSON({cmd : 'getOnline'}));
-            //获取历史记录
-            ws.send($.toJSON({cmd : 'getHistory'}));
-            //alert( "收到消息了:"+e.data );
-        }
-        else if (cmd == 'getOnline')
+        }else if (cmd == 'getOnline')
         {
             showOnlineList(message);
-        }
-        else if (cmd == 'getHistory')
-        {
-            showHistory(message);
         }
         else if (cmd == 'newUser')
         {
@@ -75,7 +67,10 @@ function listenEvent() {
         {
             var cid = message.fd;
             delUser(cid);
-            showNewMsg(message);
+        }
+        else
+        {
+
         }
     };
 
@@ -101,7 +96,7 @@ function listenEvent() {
 document.onkeydown = function (e) {
     var ev = document.all ? window.event : e;
     if (ev.keyCode == 13) {
-        sendMsg($('#msg_content').val(), 'text');
+        sendMsg($('#inputbox').val(), 'text');
         return false;
     } else {
         return true;
@@ -121,20 +116,8 @@ function showOnlineList(dataObj) {
     var option = "<option value='0' id='user_all' >所有人</option>";
 
     for (var i = 0; i < dataObj.list.length; i++) {
-        li = li + "<li id='inroom_" + dataObj.list[i].fd + "'>" +
-            "<a href=\"javascript:selectUser('"
-            + dataObj.list[i].fd + "')\">" + "<img src='" + dataObj.list[i].avatar
-            + "' width='50' height='50'></a></li>"
-
         userlist[dataObj.list[i].fd] = dataObj.list[i].name;
-
-        if (dataObj.list[i].fd != client_id) {
-            option = option + "<option value='" + dataObj.list[i].fd + "' id='user_" + dataObj.list[i].fd + "'>"
-                + dataObj.list[i].name + "</option>"
-        }
     }
-    $('#left-userlist').html(li);
-    $('#userlist').html(option);
 }
 
 /**
@@ -165,14 +148,6 @@ function showHistory(dataObj) {
 function showNewUser(dataObj) {
     if (!userlist[dataObj.fd]) {
         userlist[dataObj.fd] = dataObj.name;
-        if (dataObj.fd != client_id) {
-            $('#userlist').append("<option value='" + dataObj.fd + "' id='user_" + dataObj.fd + "'>" + dataObj.name + "</option>");
-
-        }
-        $('#left-userlist').append(
-            "<li id='inroom_" + dataObj.fd + "'>" +
-                '<a href="javascript: selectUser(\'' + dataObj.fd + '\')">' + "<img src='" + dataObj.avatar
-                + "' width='50' height='50'></a></li>");
     }
 }
 
@@ -196,6 +171,7 @@ function showNewMsg(dataObj) {
     content = parseXss(content);
     var said = '';
     var time_str;
+    var i_said = true;
 
     if (dataObj.time) {
         time_str = GetDateT(dataObj.time)
@@ -203,11 +179,10 @@ function showNewMsg(dataObj) {
         time_str = GetDateT()
     }
 
-    $("#msg-template .msg-time").html(time_str);
+    $("#msg-template .lim_time").html(time_str);
+    $("#msg-template1 .lim_time").html(time_str);
     if (fromId == 0) {
-        $("#msg-template .userpic").html("");
-        $("#msg-template .content").html(
-            "<span style='color: green'>【系统消息】</span>" + content);
+        
     }
     else {
         var html = '';
@@ -223,8 +198,9 @@ function showNewMsg(dataObj) {
         //如果说话的是我自己
         else {
             if (client_id == fromId) {
+
                 if (channal == 0) {
-                    said = '我对大家说:';
+                    said = '我说:';
                 }
                 else if (channal == 1) {
                     said = "我悄悄的对" + userlist[to] + "说:";
@@ -232,23 +208,32 @@ function showNewMsg(dataObj) {
                 html += '<span style="color: orange">' + said + ' </span> ';
             }
             else {
+                i_said = false;
                 if (channal == 0) {
-                    said = '对大家说:';
+                    // 群发不处理
+                    return ture;
                 }
                 else if (channal == 1) {
-                    said = "悄悄的对我说:";
+                    said = ":";
                 }
 
-                html += '<span style="color: orange"><a href="javascript:selectUser('
-                    + fromId + ')">' + userlist[fromId] + said;
-                html += '</a></span> '
+                html += '<span style="color: orange">' + userlist[fromId] + said;
+                html += '</span> '
             }
         }
         html += content + '</span>';
-        $("#msg-template .content").html(html);
+
+        $("#msg-template .lim_infotip").html(html);
+        $("#msg-template1 .lim_dot").html(html);
     }
-    $("#chat-messages").append($("#msg-template").html());
-    $('#chat-messages')[0].scrollTop = 1000000;
+
+    if (i_said) {
+        $("#history").append($("#msg-template1").html());        
+    }else{
+        $("#history").append($("#msg-template").html());        
+    }
+    
+    $('#notewrap')[0].scrollTop = 1000000;
 }
 
 function xssFilter(val) {
@@ -303,8 +288,6 @@ function selectUser(userid) {
 }
 
 function delUser(userid) {
-    $('#user_' + userid).remove();
-    $('#inroom_' + userid).remove();
     delete (userlist[userid]);
 }
 
@@ -319,25 +302,15 @@ function sendMsg(content, type) {
         return false;
     }
 
-    if ($('#userlist').val() == 0) {
-        msg.cmd = 'message';
-        msg.from = client_id;
-        msg.channal = 0;
-        msg.data = content;
-        msg.type = type;
-        ws.send($.toJSON(msg));
-    }
-    else {
-        msg.cmd = 'message';
-        msg.from = client_id;
-        msg.to = $('#userlist').val();
-        msg.channal = 1;
-        msg.data = content;
-        msg.type = type;
-        ws.send($.toJSON(msg));
-    }
+    msg.cmd = 'message';
+    msg.from = client_id;
+    msg.channal = 0;
+    msg.data = content;
+    msg.type = type;
+    ws.send($.toJSON(msg));
+
     showNewMsg(msg);
-    $('#msg_content').val('')
+    $('#inputbox').val('');
 }
 
 $(document).ready(function () {

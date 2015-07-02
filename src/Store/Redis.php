@@ -15,6 +15,7 @@ class Redis
         $redis = new \redis;
         $redis->connect($host, $port, $timeout);
         $this->redis = $redis;
+        // 重启服务,是否要清理记录?
     }
 
     function login($client_id, $info)
