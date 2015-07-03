@@ -2,6 +2,9 @@ var ws = {};
 var client_id = 0;
 var userlist = {};
 var GET = getRequest();
+var selectUser = 0;
+//未读信息条数 client_id=>条数
+var unreaded = {};
 
 $(document).ready(function () {
     //使用原生WebSocket
@@ -36,8 +39,9 @@ function listenEvent() {
         console.log("connect webim server success.");
         //发送登录信息
         msg = new Object();
-        msg.cmd = 'login';
-        msg.name = '微信用户';
+        msg.cmd = 'login_s';
+        msg.name = '客服1';
+        msg.cid = 1;//先指定id
         msg.avatar = 'http://h.hiphotos.baidu.com/baike/c0%3Dbaike80%2C5%2C5%2C80%2C26/sign=f3d466c53f292df583cea447dd583705/8326cffc1e178a82de3bdc4af303738da877e8d1.jpg';
         ws.send($.toJSON(msg));
     };
@@ -46,10 +50,15 @@ function listenEvent() {
     ws.onmessage = function (e) {
         var message = $.evalJSON(e.data);
         var cmd = message.cmd;
-        if (cmd == 'login')
+        if (cmd == 'login_s')
         {
             client_id = $.evalJSON(e.data).fd;
-            
+            // 获取在线用户列表
+            ws.send($.toJSON({cmd : 'getOnline'}));
+        }
+        else if (cmd == 'getOnline')
+        {
+            showUserList(message);
         }
         else if (cmd == 'newUser')
         {
@@ -76,7 +85,8 @@ function listenEvent() {
     ws.onclose = function (e) {
         if (confirm("聊天服务器已关闭")) {
             //alert('您已退出聊天室');
-            location.href = 'index.html';
+            location.href = 'server.html';
+            // 尝试每几秒重新连接服务器??
         }
     };
 
@@ -99,13 +109,48 @@ document.onkeydown = function (e) {
     }
 };
 
-function selectUser(userid) {
-    $('#userlist').val(userid);
-}
+
+
+// 这里有比较多的事件
+$('#userlist').change(function(){
+    selectUser = $(this).val();
+    // alert(selectUser);
+    $('.userchat').hide();
+    $('#history_' + selectUser).show();
+    delete (unreaded[selectUser]);
+    $('#unread_'+selectUser).remove();
+});
 
 
 /**
  * 显示所有在线列表
+ * @param dataObj
+ */
+function showUserList(dataObj) {
+    var li = '';
+    var option = "";
+    var div = "";
+
+    for (var i = 0; i < dataObj.users.length; i++) {
+
+        if (dataObj.users[i].fd != client_id) {
+            userlist[dataObj.users[i].fd] = dataObj.users[i];
+            option = option + "<option value='" + dataObj.users[i].fd + "' id='user_" + dataObj.users[i].fd + "'>"
+                + dataObj.users[i].name + "</option>";
+
+            // 每个在线用户开一个对话框
+            div = div + '<div class="userchat" id="history_'+ dataObj.users[i].fd +'" style="display:none"></div>';
+        }
+    }
+    selectUser = (dataObj.users[0].fd != undefined) ? dataObj.users[0].fd : 0;//自动选择一下
+    // $('#left-userlist').html(li);
+    $('#userlist').html(option);
+    $('#notewrap').html(div);
+}
+
+
+/**
+ *
  * @param dataObj
  */
 function showHistory(dataObj) {
@@ -131,8 +176,15 @@ function showHistory(dataObj) {
  */
 function showNewUser(dataObj) {
     if (!userlist[dataObj.fd]) {
-        userlist[dataObj.fd] = dataObj.name;
+        userlist[dataObj.fd] = dataObj;
+        // 追加新用户到select中
+        var option = "<option value='" + dataObj.fd + "' id='user_" + dataObj.fd + "'>"
+                + dataObj.name + "</option>";
+        $('#userlist').append(option);  
+        var div = '<div class="userchat" id="history_'+ dataObj.fd +'" style="display:none"></div>';
+        $('#notewrap').append(div);
     }
+
 }
 
 /**
@@ -150,7 +202,7 @@ function showNewMsg(dataObj) {
     }
 
     var fromId = dataObj.from;
-
+    // var channal = dataObj.channal;
 
     content = parseXss(content);
     var said = '';
@@ -165,37 +217,51 @@ function showNewMsg(dataObj) {
 
     $("#msg-template .lim_time").html(time_str);
     $("#msg-template1 .lim_time").html(time_str);
-    if (fromId == 0) {
-        
+ 
+    var html = '';
+    var to = dataObj.to;
+
+
+    if (client_id == fromId) {
+
+        html += '<span style="color: green">' + said + ' </span> ';
     }
     else {
-        var html = '';
-        var to = dataObj.to;
-
-
-            if (client_id == fromId) {
-                said = '我说:';
-                html += '<span style="color: green">' + said + ' </span> ';
-            }
-            else {
-                i_said = false;
-                html += '<span style="color: orange">客服001:';
-                html += '</span> '
-            }
-        
-        html += content + '</span>';
-
-        $("#msg-template .lim_infotip").html(html);
-        $("#msg-template1 .lim_dot").html(html);
-    }
-
-    if (i_said) {
-        $("#history").append($("#msg-template1").html());        
-    }else{
-        $("#history").append($("#msg-template").html());        
+        i_said = false;
+        html += '<span style="color: orange">' + userlist[fromId].name ;
+        html += ':</span> '
     }
     
-    $('#notewrap')[0].scrollTop = 1000000;
+    html += content + '</span>';
+
+    $("#msg-template .lim_infotip").html(html);
+    $("#msg-template1 .lim_dot").html(html);
+    
+    var $chat_area;
+    if (i_said) {
+        $chat_area = $("#history_" + to);
+        $chat_area.append($("#msg-template1").html());        
+    }else{
+        $chat_area = $("#history_" + fromId);
+        $chat_area.append($("#msg-template").html());
+        if (fromId != selectUser) {
+            // 加未读红点
+            var num = parseInt(unreaded[fromId]==undefined ? 0:unreaded[fromId]) +1;
+            var span = '<span id="unread_'+ fromId +'" >'+ userlist[fromId].name +'<span id="barnew_'+ fromId +'" class="barnew">'+num+'</span></span>';
+            var $unread = $('#unread_' + fromId);
+            
+            unreaded[fromId] = num;
+            if (num >1) {
+                $('#barnew_'+fromId).html(num);
+            }else{
+                $('#unread').append(span);
+            }
+
+        };
+    }
+
+    
+    $chat_area[0].scrollTop = 1000000;
 }
 
 function xssFilter(val) {
@@ -245,12 +311,16 @@ function getRequest() {
     return theRequest;
 }
 
-function selectUser(userid) {
-    $('#userlist').val(userid);
-}
 
 function delUser(userid) {
     delete (userlist[userid]);
+    $('#userlist option').each(function(){
+        $(this).value == userid;
+        $(this).remove;
+    });
+    delete (unreaded[selectUser]);
+    $('#unread_'+selectUser).remove();
+    $('#history_'+selectUser).remove();
 }
 
 function sendMsg(content, type) {
@@ -264,8 +334,9 @@ function sendMsg(content, type) {
         return false;
     }
 
-    msg.cmd = 'message';
+    msg.cmd = 'message_s';
     msg.from = client_id;
+    msg.to = selectUser;
     msg.channal = 0;
     msg.data = content;
     msg.type = type;

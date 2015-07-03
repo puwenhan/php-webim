@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui" />
+        <!-- apple safari 全屏，工具栏和菜单栏，状态栏，数字加超链接 -->
+        <meta name="apple-touch-fullscreen" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="format-detection" content="telephone=no" />
+        <!-- UC默认竖屏 ，UC强制全屏 -->
+        <meta name="full-screen" content="yes"/>
+        <meta name="browsermode" content="application"/>
+        <!-- QQ强制竖屏 QQ强制全屏 -->
+        <meta name="x5-orientation" content="portrait"/>
+        <meta name="x5-fullscreen" content="true"/>
+        <meta name="x5-page-mode" content="app"/>
+        <title>服务端测试</title>
+        <link type="text/css" rel="stylesheet" href="http://sf-ocs.sf-express.com:8080/live800/chatClient/refactor/style/layout/mobile_main.css?v=20150504" />
+        <link type="text/css" rel="stylesheet" href="http://sf-ocs.sf-express.com:8080/live800/chatClient/refactor/style/theme/custom/mobile/mobile-custom-sf/skin.css?v=20150504" />
+    </head>
+    <body>
+    <style>
+    body{
+    }
+    #msg{
+        position: fixed;
+        bottom: 0px;
+    }
+    .userchat{
+        margin-top: 20px;
+        background-color: #aaa;
+        height: 600px;
+        overflow: scroll;
+    }
+    .barnew{
+          right: 12px;
+          z-index: 10;
+          color: #fff;
+          text-align: center;
+          border-radius: 50%;
+          width: auto;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 1px;
+          background-color: #e74c3c;
+          -webkit-font-smoothing: subpixel-antialiased;
+    }
+    </style>
+        <!-- 对话框 -->
+        <div id="notewrap" >
+            <div class="userchat" id="history">
+            </div>
+            <div class="userchat" id="history_1" style="display:none">
+            </div>
+        </div>
+
+
+        <div id="msg">
+            <div class="chatBar">
+                <select name="userlist" id="userlist" style="width:100px;">
+                    <option value=""></option>
+                </select>
+                <!-- 未读信息列表 -->
+                <div id="unread">
+                </div>
+            </div>
+            
+                <div class="but_group man">
+                    <div id="emoticons" class="emoticons" toggle="close" lim:init=1 style='display:none'></div>
+                    <div id="twrap" toggle="close" class="twrap transform_0"></div>
+                </div>
+
+                
+            
+            <div id="enter_wrap">
+                <div id="ewrap">
+                    <div id="enter" class="disable">
+                        <label onclick="sendMsg($('#inputbox').val(), 'text');">发送</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="inputarea" class="man_textarea"><textarea id="inputbox"></textarea></div>
+            
+            <div class="clear"></div>
+        </div>
+
+
+
+
+        <script src="static/js/jquery.js"></script>
+        <script src="static/js/jquery.json.js"></script>
+        <script src="config.js" charset="utf-8"></script>
+        <script src="static/js/comet.js" charset="utf-8"></script>
+        <script src="static/js/server_chat.js" charset="utf-8"></script>
+
+        <!-- /container -->
+        <div id="msg-template" style="display: none">
+            <div class="lim_systemTip lim_clearfloat" >
+            <div class="lim_bubble">
+            <div class="lim_infotip">
+            </div>
+            </div>
+            <div class="lim_tale"><div class="lim_time"></div></div>
+            </div>
+        </div>
+        <div id="msg-template1" style="display: none">
+            <div class="lim_visitor lim_clearfloat ">
+            <div class="lim_bubble">
+            <div class="lim_dot"></div>
+            </div>
+            <div class="lim_tale"></div><div class="lim_time"></div></div>
+        </div>
+        <!-- / -->
+    </body>
+</html>

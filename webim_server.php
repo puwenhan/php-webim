@@ -20,7 +20,8 @@ Swoole\Loader::addNameSpace('WebIM', __DIR__.'/src/');
 
 $config = require __DIR__.'/config.php';
 
-$webim = new WebIM\Server($config);
+// $webim = new WebIM\Server($config);
+$webim = new WebIM\Server_im($config);
 $webim->loadSetting(__DIR__."/swoole.ini"); //加载配置文件
 
 /**

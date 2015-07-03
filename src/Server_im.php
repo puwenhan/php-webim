@@ -8,10 +8,11 @@ class Server_im extends Swoole\Protocol\CometServer
      * @var Store\File;
      */
     protected $store;
-    protected $users;// 咨询用户
-    protected $servers;//服务人员
+    protected $info;// 记录信息 client_id => info数组
+    protected $users;// 咨询用户 open_id => client_id 关系
+    protected $servers;//服务人员 cid => client_id 关系
 
-    const MESSAGE_MAX_LEN     = 1024; //单条消息不得超过1K
+    const MESSAGE_MAX_LEN     = 4096; //单条消息不得超过1K
     const WORKER_HISTORY_ID   = 0;
 
     function __construct($config = array())
@@ -54,26 +55,62 @@ HTML;
         $this->store = $store;
     }
 
+    //自定义一些用户关系信息记录
+    // 记录 client_id 对应的客服信息,建立 $this->servers表
+    function setServer($client_id , $info)
+    {
+        $this->info[$client_id] = $info;
+        $this->servers[$info['cid']] = $client_id;//cid代表客服系统id
+        return  true;
+    }
+
+    // 记录client_id 对应微信客户端信息
+    function setUser($client_id , $info)
+    {
+        $this->info[$client_id] = $info;
+        $this->users[$info['open_id']] = $client_id;
+        return true;
+    }
+
+    // 用户下线,清除数据
+    function delClient($client_id)
+    {
+        $info = $this->info[$client_id];
+        if (isset($info)) {
+            if (isset($info['open_id'])) {
+                unset($this->info[$client_id]);
+                unset($this->users[$info['open_id']]);
+            }elseif (isset($info['cid'])) {
+                unset($this->ifno[$client_id]);
+                unset($this->servers[$info['cid']]);
+            }
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     /**
-     * 下线时，通知所有人
+     * 下线时，清理部分数据,保留对话记录
      */
     function onExit($client_id)
     {
-        $userInfo = $this->store->getUser($client_id);
-        if ($userInfo)
-        {
+        $info = $this->info[$client_id];
+        if (isset($info['open_id'])) {
+            // 通知客服
+            $to_server = $info['server_id'];
+            // 根据 server_id 反向查找客服的 client_id
+            $to_id = $this->servers[$to_server];
             $resMsg = array(
                 'cmd' => 'offline',
                 'fd' => $client_id,
                 'from' => 0,
-                'channal' => 0,
-                'data' => $userInfo['name'] . "下线了",
-            );
-            $this->store->logout($client_id);
-            //将下线消息发送给所有人
-            $this->broadcastJson($client_id, $resMsg);
+                // 'channal' => 0,
+                'data' =>'下线了');
+            $this->sendJson($to_id, $resMsg);
         }
-        $this->log("onOffline: " . $client_id);
+        
+        $this->delClient($client_id);
     }
 
     function onTask($serv, $task_id, $from_id, $data)
@@ -121,10 +158,19 @@ HTML;
         $resMsg = array(
             'cmd' => 'getOnline',
         );
-        $users = $this->store->getOnlineUsers();
-        $info = $this->store->getUsers(array_slice($users, 0, 100));
+        // $users = $this->store->getOnlineUsers();
+        // $info = $this->store->getUsers(array_slice($users, 0, 100));
+        // 只有客服端需要获取自己相关客户
+        $info = $this->info[$client_id];
+        $users = array();
+        foreach ($this->info as $cli => $value) {
+            if ( isset($value['server_id']) && ($value['server_id'] == $info['cid']) ) {
+                $users[] = $value;
+            }
+        }
+
         $resMsg['users'] = $users;
-        $resMsg['list'] = $info;
+        // $resMsg['list'] = $info;
         $this->sendJson($client_id, $resMsg);
     }
 
@@ -141,33 +187,31 @@ HTML;
     }
 
     /**
-     * 登录
+     * 咨询微信登录
      * @param $client_id
      * @param $msg
      */
     function cmd_login($client_id, $msg)
     {
+        // 可能需要做个验证
         $info['name'] = $msg['name'];
         $info['avatar'] = $msg['avatar'];
-        if (isset($msg['cid'])) {
-            // 有这个人为是客服人员
-            $info['cid'] = $msg['cid'];
-        }
+        $info['fd'] = $client_id;
+        // $info['open_id'] = $msg['open_id'];// 有openid人为是客户 - 根据openid 识别客户唯一性
+        // $info['server_id'] = $msg['server_id'];//由服务器分配
 
-        //回复给登录用户 暂时这样考虑
+        //回复给登录用户 暂时这样考虑 - 都是临时加上的.实际需要去掉
         if ($msg['name'] == '微信用户') {
             $info['name'] .= $client_id;
-            $info['uid'] = $client_id;// 有uid人为是客户
+//!!!!
+            $msg['open_id'] = $client_id;//暂时没获取到因此临时使用client_id代替下
+            $info['open_id'] = $client_id;//暂时没获取到因此临时使用client_id代替下
+            // 分配客服人员 - 现在只有i
+            $info['server_id'] = 1;//由服务器分配
         }
-
-        
 
         //把会话存起来,记录用户信息
-        if (isset($info['uid'])) {
-            $this->users[$client_id] = $info;
-        }else{
-            $this->servers[$client_id] = $info;
-        }
+        $this->setUser( $client_id , $info );
 
         // 登陆成功
         $resMsg = array(
@@ -175,29 +219,55 @@ HTML;
             'fd' => $client_id,
         );
 
-        $this->store->login($client_id, $info);
-        $this->sendJson($client_id, $resMsg);
+        $this->sendJson($client_id, $resMsg);//回复服务器正确接受用户上线
+        
 
-        //广播给其它在线用户
-        $resMsg['cmd'] = 'newUser';
-        //将上线消息发送给所有人
-        $this->broadcastJson($client_id, $resMsg);
-        //用户登录消息
-        $loginMsg = array(
-            'cmd' => 'fromMsg',
-            'from' => 0,
-            'channal' => 0,
-            'data' => $msg['name'] . "上线了",
-        );
-        $this->broadcastJson($client_id, $loginMsg);
+        $resMsg = array(
+            'cmd' => 'newUser',
+            'fd' => $client_id,
+            'name' => $info['name'],
+            );
+
+        $server_cli_id = $this->servers[$info['server_id']];
+        $this->sendJson($server_cli_id, $resMsg);//通知客服,用户上线
+
+
     }
 
     /**
-     * 发送信息请求
+     * 后台客服人员登录
+     * @param $client_id
+     * @param $msg
+     */
+    function cmd_login_s($client_id, $msg)
+    {
+        // 可能需要做个验证
+        $info['name'] = $msg['name'];
+        $info['avatar'] = $msg['avatar'];
+        $info['cid'] = $msg['cid'];
+        $info['fd'] = $client_id;
+
+        $this->setServer($client_id , $info);
+
+        // 登陆成功
+        $resMsg = array(
+            'cmd' => 'login_s',
+            'fd' => $client_id,
+        );
+
+        $this->sendJson($client_id, $resMsg);//回复服务器正确接受用户上线
+
+        //可以给用户一个欢迎消息
+    }
+
+    /**
+     * 发送信息请求 - 来自微信客户
      */
     function cmd_message($client_id, $msg)
     {
+        // $msg 也记录下客服id
         $resMsg = $msg;
+        $resMsg['from'] = $client_id;
         $resMsg['cmd'] = 'fromMsg';
 
         if (strlen($msg['data']) > self::MESSAGE_MAX_LEN)
@@ -206,22 +276,58 @@ HTML;
             return;
         }
 
-        //表示群发
-        if ($msg['channal'] == 0)
-        {
-            $this->broadcastJson($client_id, $resMsg);
-            $this->getSwooleServer()->task(serialize(array(
-                'cmd' => 'addHistory',
-                'msg' => $msg,
-                'fd'  => $client_id,
-            )), self::WORKER_HISTORY_ID);
+        // 来的消息
+        $from_user = $this->info[$client_id];
+        // 客户给客服
+        $to_server = $from_user['server_id'];
+
+        // 根据 server_id 反向查找客服的 client_id
+// 需要考虑客服掉线的情况.
+        if (!isset($this->servers[$to_server])) {
+            # code...
+        }else{
+            $to_id = $this->servers[$to_server];
+
         }
-        //表示私聊
-        elseif ($msg['channal'] == 1)
+        
+        $msg['type'] = 'from_user';
+
+        // redis 增加聊天记录 - 可以改成数据库的
+        $this->store->saveChatLog($from_user['open_id'] , $msg);
+
+ 
+        $this->sendJson($to_id, $resMsg);
+
+    }
+
+    /**
+     * 发送信息请求 - 来自客服
+     */
+    function cmd_message_s($client_id, $msg)
+    {
+        $resMsg = $msg;
+        $resMsg['from'] = $client_id;
+        $resMsg['cmd'] = 'fromMsg';
+
+        if (strlen($msg['data']) > self::MESSAGE_MAX_LEN)
         {
-            $this->sendJson($msg['to'], $resMsg);
-            //$this->store->addHistory($client_id, $msg['data']);
+            $this->sendErrorMessage($client_id, 102, 'message max length is '.self::MESSAGE_MAX_LEN);
+            return;
         }
+
+        // 来的消息
+        $from_user = $this->info[$client_id];
+        // 客服回复消息
+        $to_id = $msg['to'];//client_id
+        $msg['type'] = 'to_user';
+        $to_user = $this->info[$to_id];
+        
+        // redis 增加聊天记录
+        $this->store->saveChatLog($to_user['open_id'] , $msg);
+
+ 
+        $this->sendJson($to_id, $resMsg);
+
     }
 
     /**
@@ -276,21 +382,21 @@ HTML;
      * @param $client_id
      * @param $array
      */
-    function broadcastJson($sesion_id, $array)
-    {
-        $msg = json_encode($array);
-        $this->broadcast($sesion_id, $msg);
-    }
+    // function broadcastJson($sesion_id, $array)
+    // {
+    //     $msg = json_encode($array);
+    //     $this->broadcast($sesion_id, $msg);
+    // }
 
-    function broadcast($current_session_id, $msg)
-    {
-        foreach ($this->users as $client_id => $name)
-        {
-            if ($current_session_id != $client_id)
-            {
-                $this->send($client_id, $msg);
-            }
-        }
-    }
+    // function broadcast($current_session_id, $msg)
+    // {
+    //     foreach ($this->users as $client_id => $name)
+    //     {
+    //         if ($current_session_id != $client_id)
+    //         {
+    //             $this->send($client_id, $msg);
+    //         }
+    //     }
+    // }
 }
 

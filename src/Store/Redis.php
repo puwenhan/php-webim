@@ -18,17 +18,16 @@ class Redis
         // 重启服务,是否要清理记录?
     }
 
-    function login($client_id, $info)
+    // 记录料条记录
+    function saveChatLog($user_id , $msg)
     {
-        $this->redis->set(self::$prefix.'client_'.$client_id, serialize($info));
-        $this->redis->sAdd(self::$prefix.'online', $client_id);
+        // list 数据记录
+        $key = self::$prefix.'chatlog:client_'.$user_id;
+        $this->redis->rpush($key , $msg);
     }
 
-    function logout($client_id)
-    {
-        $this->redis->del(self::$prefix.'client_', $client_id);
-        $this->redis->sRemove(self::$prefix.'online', $client_id);
-    }
+
+
 
     function getOnlineUsers()
     {
