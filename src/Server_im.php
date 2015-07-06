@@ -197,18 +197,10 @@ HTML;
         $info['name'] = $msg['name'];
         $info['avatar'] = $msg['avatar'];
         $info['fd'] = $client_id;
-        // $info['open_id'] = $msg['open_id'];// 有openid人为是客户 - 根据openid 识别客户唯一性
+        $info['open_id'] = $msg['open_id'];// 有openid人为是客户 - 根据openid 识别客户唯一性
+        $info['server_id'] = 1;//由服务器分配
         // $info['server_id'] = $msg['server_id'];//由服务器分配
 
-        //回复给登录用户 暂时这样考虑 - 都是临时加上的.实际需要去掉
-        if ($msg['name'] == '微信用户') {
-            $info['name'] .= $client_id;
-//!!!!
-            $msg['open_id'] = $client_id;//暂时没获取到因此临时使用client_id代替下
-            $info['open_id'] = $client_id;//暂时没获取到因此临时使用client_id代替下
-            // 分配客服人员 - 现在只有i
-            $info['server_id'] = 1;//由服务器分配
-        }
 
         //把会话存起来,记录用户信息
         $this->setUser( $client_id , $info );
@@ -284,7 +276,7 @@ HTML;
         // 根据 server_id 反向查找客服的 client_id
 // 需要考虑客服掉线的情况.
         if (!isset($this->servers[$to_server])) {
-            # code...
+            $to_id = current($this->servers);//给第一个客服Id
         }else{
             $to_id = $this->servers[$to_server];
 

@@ -128,7 +128,7 @@ $('#userlist').change(function(){
  */
 function showUserList(dataObj) {
     var li = '';
-    var option = "";
+    var option = "<option value='' >选择用户</option>";
     var div = "";
 
     for (var i = 0; i < dataObj.users.length; i++) {
@@ -183,6 +183,7 @@ function showNewUser(dataObj) {
         $('#userlist').append(option);  
         var div = '<div class="userchat" id="history_'+ dataObj.fd +'" style="display:none"></div>';
         $('#notewrap').append(div);
+        // 查询历史聊天记录
     }
 
 }

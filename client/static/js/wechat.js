@@ -2,8 +2,9 @@ var ws = {};
 var client_id = 0;
 var userlist = {};
 var GET = getRequest();
-
+    
 $(document).ready(function () {
+alert(wechat_user.name);
     //使用原生WebSocket
     if (window.WebSocket || window.MozWebSocket)
     {
@@ -37,8 +38,10 @@ function listenEvent() {
         //发送登录信息
         msg = new Object();
         msg.cmd = 'login';
-        msg.name = '微信用户';
-        msg.avatar = 'http://h.hiphotos.baidu.com/baike/c0%3Dbaike80%2C5%2C5%2C80%2C26/sign=f3d466c53f292df583cea447dd583705/8326cffc1e178a82de3bdc4af303738da877e8d1.jpg';
+        msg.name = wechat_user.name;
+        msg.open_id = wechat_user.open_id;
+        msg.avatar = '';
+
         ws.send($.toJSON(msg));
     };
 
