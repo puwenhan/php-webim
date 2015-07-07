@@ -42,17 +42,19 @@ HTML;
         $this->setLogger($logger);   //Logger
 
         /**
-         * 使用文件或redis存储聊天信息
+         * 使用mysql 存数据
          */
         // $this->setStore(new \WebIM\Store\File($config['webim']['data_dir']));
-        $this->setStore(new \WebIM\Store\Redis());
-        $this->origin = $config['server']['origin'];
+        // $this->setStore(new \WebIM\Store\Redis());
+        $this->setStore(new \Swoole\Database($config['db']));
+        // $this->origin = $config['server']['origin'];
         parent::__construct($config);
     }
 
     function setStore($store)
     {
         $this->store = $store;
+        $store->connect();
     }
 
     //自定义一些用户关系信息记录
@@ -81,7 +83,7 @@ HTML;
                 unset($this->info[$client_id]);
                 unset($this->users[$info['open_id']]);
             }elseif (isset($info['cid'])) {
-                unset($this->ifno[$client_id]);
+                unset($this->info[$client_id]);
                 unset($this->servers[$info['cid']]);
             }
             return true;
@@ -121,23 +123,18 @@ HTML;
             switch($req['cmd'])
             {
                 case 'getHistory':
-                    $history = array('cmd'=> 'getHistory', 'history' => $this->store->getHistory());
-                    if ($this->isCometClient($req['fd']))
-                    {
-                        return $req['fd'].json_encode($history);
-                    }
-                    //WebSocket客户端可以task中直接发送
-                    else
-                    {
-                        $this->sendJson(intval($req['fd']), $history);
-                    }
+                    
                     break;
                 case 'addHistory':
                     if (empty($req['msg']))
                     {
                         $req['msg'] = '';
                     }
-                    $this->store->addHistory($req['fd'], $req['msg']);
+                    $insert_data = $req;
+                    unset($insert_data['cmd']);
+                    unset($insert_data['fd']);
+                    unset($insert_data['msg']);
+                    $this->store->insert($insert_data , 'wiz_wechat_im_log');
                     break;
                 default:
                     break;
@@ -187,6 +184,20 @@ HTML;
     }
 
     /**
+     * 记录历史聊天记录
+     */
+    function addHistory($client_id, $msg)
+    {
+        $task = $msg;
+        $task['fd'] = $client_id;
+        $task['cmd'] = 'addHistory';
+
+        //在task worker中会直接发送给客户端
+        $this->getSwooleServer()->task(serialize($task), self::WORKER_HISTORY_ID);
+    }
+
+
+    /**
      * 咨询微信登录
      * @param $client_id
      * @param $msg
@@ -201,27 +212,32 @@ HTML;
         $info['server_id'] = 1;//由服务器分配
         // $info['server_id'] = $msg['server_id'];//由服务器分配
 
+        //处理特殊情况,用户使用中短线,重连造成的fd更新
+        if (isset($this->users[$info['open_id']])) {
+            // 将对应的client_id用户下线
+            $this->getSwooleServer()->close($this->users[$info['open_id']]);
+        }
 
         //把会话存起来,记录用户信息
         $this->setUser( $client_id , $info );
 
-        // 登陆成功
-        $resMsg = array(
-            'cmd' => 'login',
-            'fd' => $client_id,
-        );
+        $resMsg = $info;
+        $resMsg['cmd'] = 'login';
 
         $this->sendJson($client_id, $resMsg);//回复服务器正确接受用户上线
+
+
         
+        // 通知服务人员新用户上线
+        $resMsg['cmd'] = 'newUser';
+        if (isset($this->servers[$info['server_id']])) {
+            $server_cli_id = $this->servers[$info['server_id']];
+            $this->sendJson($server_cli_id, $resMsg);
+        }else{
+            // 处理客服人员没在线的情况...
 
-        $resMsg = array(
-            'cmd' => 'newUser',
-            'fd' => $client_id,
-            'name' => $info['name'],
-            );
-
-        $server_cli_id = $this->servers[$info['server_id']];
-        $this->sendJson($server_cli_id, $resMsg);//通知客服,用户上线
+        }
+        
 
 
     }
@@ -241,15 +257,11 @@ HTML;
 
         $this->setServer($client_id , $info);
 
+        $resMsg = $info;
         // 登陆成功
-        $resMsg = array(
-            'cmd' => 'login_s',
-            'fd' => $client_id,
-        );
+        $resMsg['cmd'] = 'login_s';
 
         $this->sendJson($client_id, $resMsg);//回复服务器正确接受用户上线
-
-        //可以给用户一个欢迎消息
     }
 
     /**
@@ -285,7 +297,18 @@ HTML;
         $msg['type'] = 'from_user';
 
         // redis 增加聊天记录 - 可以改成数据库的
-        $this->store->saveChatLog($from_user['open_id'] , $msg);
+        // 增加聊天记录
+        $data = array(
+                'msgType' => 0,
+                'sendType'=> 1,//1向客服发送提问
+                'content' =>$msg['data'],
+                'openid'  =>$from_user['open_id'],
+                'server'  =>$from_user['server_id'],
+                'sendAt'  =>date('Y-m-d H:i:s'),
+                 );
+        // var_dump($data);
+        // task 异步记录到mysql
+        $this->addHistory($client_id,$data);
 
  
         $this->sendJson($to_id, $resMsg);
@@ -314,8 +337,18 @@ HTML;
         $msg['type'] = 'to_user';
         $to_user = $this->info[$to_id];
         
-        // redis 增加聊天记录
-        $this->store->saveChatLog($to_user['open_id'] , $msg);
+        // 增加聊天记录
+        $data = array(
+                'msgType' => 0,
+                'sendType'=> 0,//0向用户发送
+                'content' =>$msg['data'],
+                'openid'  =>$to_user['open_id'],
+                'server'  =>$from_user['cid'],
+                'sendAt'  =>date('Y-m-d H:i:s'),
+                 );
+        // var_dump($data);
+        // task 异步记录到mysql
+        $this->addHistory($client_id,$data);
 
  
         $this->sendJson($to_id, $resMsg);

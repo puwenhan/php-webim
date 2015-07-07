@@ -42,7 +42,7 @@ function listenEvent() {
         msg.cmd = 'login_s';
         msg.name = '客服1';
         msg.cid = 1;//先指定id
-        msg.avatar = 'http://h.hiphotos.baidu.com/baike/c0%3Dbaike80%2C5%2C5%2C80%2C26/sign=f3d466c53f292df583cea447dd583705/8326cffc1e178a82de3bdc4af303738da877e8d1.jpg';
+        msg.avatar = '';//头像
         ws.send($.toJSON(msg));
     };
 
@@ -70,8 +70,8 @@ function listenEvent() {
         }
         else if (cmd == 'offline')
         {
-            var cid = message.fd;
-            delUser(cid);
+            var client_id = message.fd;
+            delUser(client_id);
         }
         else
         {
@@ -85,7 +85,8 @@ function listenEvent() {
     ws.onclose = function (e) {
         if (confirm("聊天服务器已关闭")) {
             //alert('您已退出聊天室');
-            location.href = 'server.html';
+            // location.href = 'server.html';
+            location.reload();
             // 尝试每几秒重新连接服务器??
         }
     };
@@ -142,7 +143,7 @@ function showUserList(dataObj) {
             div = div + '<div class="userchat" id="history_'+ dataObj.users[i].fd +'" style="display:none"></div>';
         }
     }
-    selectUser = (dataObj.users[0].fd != undefined) ? dataObj.users[0].fd : 0;//自动选择一下
+    // selectUser = (typeof(dataObj.users[0]) != undefined && ()) ? dataObj.users[0].fd : 0;//自动选择一下
     // $('#left-userlist').html(li);
     $('#userlist').html(option);
     $('#notewrap').html(div);
@@ -315,13 +316,11 @@ function getRequest() {
 
 function delUser(userid) {
     delete (userlist[userid]);
-    $('#userlist option').each(function(){
-        $(this).value == userid;
-        $(this).remove;
-    });
-    delete (unreaded[selectUser]);
-    $('#unread_'+selectUser).remove();
-    $('#history_'+selectUser).remove();
+    delete (unreaded[userid]);
+    // 直接删除记录不太合适,需要有更复杂的处理
+    $('#user_'+userid).remove();
+    $('#unread_'+userid).remove();
+    $('#history_'+userid).remove();
 }
 
 function sendMsg(content, type) {
