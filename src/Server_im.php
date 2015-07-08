@@ -123,7 +123,21 @@ HTML;
             switch($req['cmd'])
             {
                 case 'getHistory':
-                    
+                    // 查询数据,并发送服务端
+                    $where = " openid = '{$req['open_id']}' ";
+                    if ($req['offset'] > 0) {
+                        $where .= " AND id < {$req['offset']} ";
+                    }
+                    $sql  = "SELECT * FROM wiz_wechat_im_log WHERE {$where} ORDER BY id DESC LIMIT {$req['limit']} ";
+                    $result = $this->store->query($sql)->fetchall();
+                    $to_id = $req['to_id'];
+
+                    $resMsg = array(
+                        'cmd' => 'history',
+                        'fd' => $req['fd'],// 记录针对的用户client_id
+                        'data' =>$result);
+                    $this->sendJson($to_id, $resMsg);// 发送记录到客服那边
+                                        
                     break;
                 case 'addHistory':
                     if (empty($req['msg']))
@@ -176,9 +190,17 @@ HTML;
      */
     function cmd_getHistory($client_id, $msg)
     {
-        $task['fd'] = $client_id;
         $task['cmd'] = 'getHistory';
-        $task['offset'] = '0,100';
+        // 发起查询,针对客户的聊天记录
+        $user_id = $this->users[$msg['open_id']];
+        $task['fd'] = $user_id;// 方便前端取用
+        $info = $this->info[$user_id];
+        $server_id = $this->servers[$info['server_id']];
+        $task['to_id'] = $server_id;
+        // $msg 中需要加客户的open_id来发送聊天记录
+        $task['open_id'] = $msg['open_id'];
+        $task['offset'] = isset($msg['offset'])?$msg['offset']:0;//客户端回传最小id,首次查询第一页传0
+        $task['limit'] = 10;//默认每次查10条
         //在task worker中会直接发送给客户端
         $this->getSwooleServer()->task(serialize($task), self::WORKER_HISTORY_ID);
     }
@@ -233,6 +255,7 @@ HTML;
         if (isset($this->servers[$info['server_id']])) {
             $server_cli_id = $this->servers[$info['server_id']];
             $this->sendJson($server_cli_id, $resMsg);
+            $this->cmd_getHistory($client_id,$info);
         }else{
             // 处理客服人员没在线的情况...
 
@@ -332,6 +355,7 @@ HTML;
 
         // 来的消息
         $from_user = $this->info[$client_id];
+        $resMsg['from_name'] = $from_user['name'];
         // 客服回复消息
         $to_id = $msg['to'];//client_id
         $msg['type'] = 'to_user';

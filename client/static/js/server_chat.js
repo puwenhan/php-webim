@@ -40,8 +40,8 @@ function listenEvent() {
         //发送登录信息
         msg = new Object();
         msg.cmd = 'login_s';
-        msg.name = '客服1';
-        msg.cid = 1;//先指定id
+        msg.name = wechat_user.name;
+        msg.cid = wechat_user.cid;//先指定id
         msg.avatar = '';//头像
         ws.send($.toJSON(msg));
     };
@@ -73,9 +73,9 @@ function listenEvent() {
             var client_id = message.fd;
             delUser(client_id);
         }
-        else
+        else if (cmd == 'history') 
         {
-
+            showHistory(message);
         }
     };
 
@@ -140,7 +140,8 @@ function showUserList(dataObj) {
                 + dataObj.users[i].name + "</option>";
 
             // 每个在线用户开一个对话框
-            div = div + '<div class="userchat" id="history_'+ dataObj.users[i].fd +'" style="display:none"></div>';
+            var more = '<a id="chat_more_history_'+ dataObj.users[i].fd +'" onclick = "getMore(0, \''+ dataObj.users[i].open_id +'\' )" >查看更多...</a>';
+            div = div + '<div class="userchat" id="history_'+ dataObj.users[i].fd +'" style="display:none">'+ more +'</div>';
         }
     }
     // selectUser = (typeof(dataObj.users[0]) != undefined && ()) ? dataObj.users[0].fd : 0;//自动选择一下
@@ -156,18 +157,28 @@ function showUserList(dataObj) {
  */
 function showHistory(dataObj) {
     var msg;
-    console.dir(dataObj);
-    for (var i = 0; i < dataObj.history.length; i++) {
-        msg = dataObj.history[i]['msg'];
-        if (!msg) continue;
-        msg['time'] = dataObj.history[i]['time'];
-        msg['user'] = dataObj.history[i]['user'];
-        if (dataObj.history[i]['type'])
-        {
-            msg['type'] = dataObj.history[i]['type'];
-        }
-        msg['channal'] = 3;
-        showNewMsg(msg);
+    // console.dir(dataObj);
+    // 收到的因为是聊天记录,因此需要反向插入到聊天记录中
+    var length = dataObj.data.length;
+
+    if (length == 0) {
+        msg = {'isend':1,'nomore':1,'fd':dataObj.fd};
+        showHistoryMsg(msg); 
+    };
+    for (var i = 0; i < length; i++) {
+        msg = dataObj.data[i];
+        msg.isend = 1;
+        msg.nomore = 1;
+        msg.fd = dataObj.fd;
+        
+        // 如果最后一条,需要给个标志位,增加按钮-查看更多...
+        if (i != (length -1) ) {
+            msg.isend = 0;
+        };
+        if (length >= 10) {// 如果每页加载数改变,这个值也应修改!
+            msg.nomore = 0;
+        };
+        showHistoryMsg(msg);
     }
 }
 
@@ -184,7 +195,7 @@ function showNewUser(dataObj) {
         $('#userlist').append(option);  
         var div = '<div class="userchat" id="history_'+ dataObj.fd +'" style="display:none"></div>';
         $('#notewrap').append(div);
-        // 查询历史聊天记录
+        // 查询历史聊天记录(近10条?暂定)
     }
 
 }
@@ -264,6 +275,85 @@ function showNewMsg(dataObj) {
 
     
     $chat_area[0].scrollTop = 1000000;
+}
+
+/**
+ * 追加旧新消息
+ */
+function showHistoryMsg(dataObj) {
+
+    var content;
+    var said = '';
+    var time_str = '';
+    var i_said = true;
+    var fromid = dataObj.fd;
+    var $chat_area;
+    var html = '';
+
+
+    $chat_area = $("#history_" + fromid);
+
+    if (typeof(dataObj.content) != 'undefined') {
+
+        content = xssFilter(dataObj.content);
+        content = parseXss(content);
+        time_str = dataObj.sendAt;
+
+        $("#msg-template .lim_time").html(time_str);
+        $("#msg-template1 .lim_time").html(time_str);
+     
+
+
+        if (dataObj.sendType == 0) {
+
+            html += '<span style="color: green">' + said + ' </span> ';
+            html += content + '</span>';
+            $("#msg-template1 .lim_dot").html(html);
+        }
+        else {
+            i_said = false;
+            html += '<span style="color: orange">' + userlist[fromid].name ;
+            html += ':</span> ';
+            html += content + '</span>';
+            $("#msg-template .lim_infotip").html(html);
+        }
+        
+        
+        
+        
+
+        if (i_said) {
+            $chat_area.prepend($("#msg-template1").html());        
+        }else{
+            $chat_area.prepend($("#msg-template").html());
+        }
+
+    }
+
+    if (dataObj.isend == 1) {
+        $("#chat_more_history_"+fromid).remove();
+        var more = "";
+        if (dataObj.nomore == 0) {
+            more = '<a id="chat_more_history_'+ fromid +'" onclick = "getMore('+ dataObj.id +', \''+ userlist[fromid].open_id +'\' )" >查看更多...</a>';
+        }else{
+            more = '没有更多了';
+        };
+        $chat_area.prepend(more);
+        // console.log('endPos!');
+    };
+
+    
+    // $chat_area[0].scrollTop = 1000000;
+}
+
+// 发消息从服务器获取更多聊天记录
+function getMore (id , open_id) {
+    // body...
+    var msg = {};
+    msg.cmd = 'getHistory';
+    msg.offset = id;//最后id
+    msg.open_id = open_id;
+    ws.send($.toJSON(msg));
 }
 
 function xssFilter(val) {

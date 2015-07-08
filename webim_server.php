@@ -1,7 +1,7 @@
 <?php
 define('DEBUG', 'on');
 define('WEBPATH', __DIR__);
-
+date_default_timezone_set('PRC');
 /**
  * /vendor/autoload.php是Composer工具生成的
  * shell: composer update

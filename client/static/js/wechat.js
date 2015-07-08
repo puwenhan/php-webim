@@ -176,12 +176,12 @@ function showNewMsg(dataObj) {
 
 
             if (client_id == fromId) {
-                said = '我说:';
+                said = '';
                 html += '<span style="color: green">' + said + ' </span> ';
             }
             else {
                 i_said = false;
-                html += '<span style="color: orange">客服001:';
+                html += '<span style="color: orange">'+dataObj.from_name+':';
                 html += '</span> '
             }
         
