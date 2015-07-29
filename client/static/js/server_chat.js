@@ -115,7 +115,6 @@ document.onkeydown = function (e) {
 // 这里有比较多的事件
 $('#userlist').change(function(){
     selectUser = $(this).val();
-    // alert(selectUser);
     $('.userchat').hide();
     $('#history_' + selectUser).show();
     delete (unreaded[selectUser]);
