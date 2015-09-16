@@ -139,7 +139,7 @@ class Event
 
                 return;
             case 'message_s':
-                $message_data['time'] = date('Y-m-d H:i:s');
+                $message_data[ 'time' ] = date( 'Y-m-d H:i:s' );
                 self::history( 'set', $message_data );
 
                 return Gateway::sendToClient( $message_data[ 'to' ], json_encode( $message_data ) );
@@ -271,11 +271,10 @@ class Event
      * 用户分配中心,处理四个事件:
      * @param $env 1:客服上线;2:客服下线;3:用户上线;4:用户下线;5:用户发消息
      * @param $client_id
-     * @param $message 推送消息
      *
      * @return mix $client_id 返回分配的对应id或其他
      */
-    public static function distribution( $env, $client_id, $message = '' )
+    public static function distribution( $env, $client_id )
     {
         $store = Store::instance( 'dialog' );
         $user_to_server = 'wiz_user_to_server-';//type:string
@@ -369,14 +368,24 @@ class Event
         if ( !isset( $data[ 'limit' ] ) ) {
             $data[ 'limit' ] = 10;
         }
+
+        // open_id仅包含特殊字符-,没有其它特殊字符,因此可以直接过滤掉,防止注入
+        $search = array( '"', '\'', '`', "\\" );
+        $replace = array( '', '', '', '' );
+        if ( isset( $data[ 'open_id' ] ) ) {
+            $data[ 'open_id' ] = str_replace( $search, $replace, $data[ 'open_id' ] );
+            $where = " openid = '{$data['open_id']}' ";
+        }
+
         switch ( $env ) {
             case 'get':
                 //获取记录
-                // 查询数据,并发送服务端 - 注意放Sql注入!!!
-                $where = " openid = '{$data['open_id']}' ";
+                $data[ 'offset' ] += 0;
                 if ( $data[ 'offset' ] > 0 ) {
                     $where .= " AND id < {$data['offset']} ";
                 }
+
+                $data[ 'limit' ] += 0;
                 $sql = "SELECT * FROM wiz_wechat_im_log WHERE {$where} ORDER BY id DESC LIMIT {$data['limit']} ";
                 $result = $db->query( $sql );
 
@@ -396,14 +405,15 @@ class Event
                     $open_id = $data[ 'open_id' ];
                 } else {
                     $send_type = 0;
-                    $server_id = $_SESSION['system_id'];
-                    $client = self::getClient( $data['to'], 'client' );
+                    $server_id = $_SESSION[ 'system_id' ];
+                    $client = self::getClient( $data[ 'to' ], 'client' );
                     if ( !isset( $client[ 'open_id' ] ) ) {
-                        $open_id = 'unknown';
+                        $open_id = 'unknown';//是否需要处理?
                     } else {
                         $open_id = $client[ 'open_id' ];
                     }
                 }
+//                $data[ 'data' ] = urlencode( $data[ 'data' ] );//是否真的需要呢?
                 $cols = array(
                     'msgType'  => 0,// 这个参数是做什么来的?
                     'sendType' => $send_type,
@@ -413,7 +423,7 @@ class Event
                     'sendAt'   => $data[ 'time' ],
                 );
 //                var_dump( $cols );
-                $db->insert('wiz_wechat_im_log')->cols($cols)->query();
+                $db->insert( 'wiz_wechat_im_log' )->cols( $cols )->query();
                 break;
         }
     }

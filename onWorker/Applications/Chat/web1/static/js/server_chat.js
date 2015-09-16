@@ -310,14 +310,14 @@ function showHistoryMsg(dataObj) {
         if (dataObj.sendType == 0) {
 
             html += '<span style="color: green">' + said + ' </span> ';
-            html += content + '</span>';
+            html += decodeURIComponent(content) + '</span>';
             $("#msg-template1 .lim_dot").html(html);
         }
         else {
             i_said = false;
             html += '<span style="color: orange">' + userlist[fromid].name ;
             html += ':</span> ';
-            html += content + '</span>';
+            html += decodeURIComponent(content) + '</span>';
             $("#msg-template .lim_infotip").html(html);
         }
         
