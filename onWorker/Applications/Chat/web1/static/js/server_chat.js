@@ -75,6 +75,10 @@ function listenEvent() {
         else if (cmd == 'history') 
         {
             showHistory(message);
+        }else if (cmd == 'ping')
+        {
+            msg.cmd = 'pong';
+            ws.send($.toJSON(msg));
         }
     };
 
@@ -220,9 +224,9 @@ function showNewMsg(dataObj) {
     var i_said = true;
 
     if (dataObj.time) {
-        time_str = GetDateT(dataObj.time)
+        time_str = dataObj.time;
     } else {
-        time_str = GetDateT()
+        time_str = GetDateT();
     }
 
     $("#msg-template .lim_time").html(time_str);
@@ -272,7 +276,7 @@ function showNewMsg(dataObj) {
     }
 
     
-    //$chat_area[0].scrollTop = 1000000;
+    $chat_area[0].scrollTop = 1000000;
 }
 
 /**
