@@ -165,7 +165,8 @@ function showHistory(dataObj) {
 
     if (length == 0) {
         msg = {'isend':1,'nomore':1,'fd':dataObj.fd};
-        showHistoryMsg(msg); 
+        showHistoryMsg(msg);
+        return true;
     };
     for (var i = 0; i < length; i++) {
         msg = dataObj.data[i];
@@ -336,7 +337,7 @@ function showHistoryMsg(dataObj) {
         $("#chat_more_history_"+fromid).remove();
         var more = "";
         if (dataObj.nomore == 0) {
-            more = '<a id="chat_more_history_'+ fromid +'" onclick = "getMore('+ dataObj.id +', \''+ userlist[fromid].open_id +'\' )" >查看更多...</a>';
+            more = '<a id="chat_more_history_'+ fromid +'" onclick = "getMore('+ dataObj.id +', \''+ userlist[fromid].open_id +'\' ,'+ fromid + ' )" >查看更多...</a>';
         }else{
             more = '没有更多了';
         };
@@ -349,12 +350,13 @@ function showHistoryMsg(dataObj) {
 }
 
 // 发消息从服务器获取更多聊天记录
-function getMore (id , open_id) {
+function getMore (id , open_id ,fd) {
     // body...
     var msg = {};
     msg.cmd = 'getHistory';
     msg.offset = id;//最后id
     msg.open_id = open_id;
+    msg.fd = fd;
     ws.send($.toJSON(msg));
 }
 

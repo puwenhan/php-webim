@@ -18,6 +18,7 @@
  */
 use \GatewayWorker\Lib\Gateway;
 use \GatewayWorker\Lib\Store;
+use \GatewayWorker\Lib\Db;
 
 class Event
 {
@@ -65,10 +66,10 @@ class Event
 //                $all_agrents = self::getAllClients( 'server' );
 
                 // 多客服,需要有个分配用户的逻辑
-                self::distribution( 'userOn', $client_id , json_encode( $new_message ));
+                self::distribution( 'userOn', $client_id, json_encode( $new_message ) );
 //                    Gateway::sendToClient( $server_id, json_encode( $new_message ) );//通知客服用户上线
                 $message = array( 'cmd' => 'message', 'data' => '客服自动回复内容!' );
-                Gateway::sendToCurrentClient(json_encode($message));
+                Gateway::sendToCurrentClient( json_encode( $message ) );
 
                 //这里可以加些欢迎提示语
                 return;
@@ -88,8 +89,11 @@ class Event
                 // 获取全部在线客服,进行广播,针对全部客服?
 //                $all_agrents = self::getAllClients( 'server' );
 //                return Gateway::sendToAll( json_encode( $message ), array_keys( $all_agrents ) );
-                $server_id = self::distribution('cliMessage' , $client_id);
-                return Gateway::sendToClient($server_id , json_encode($message));
+                $server_id = self::distribution( 'cliMessage', $client_id );
+                // 生成聊天记录到数据库
+                self::history( 'set', $message, $server_id );
+
+                return Gateway::sendToClient( $server_id, json_encode( $message ) );
             // 服务端登录 message格式: {type:login, name:xx, room_id:1} ，添加到客户端，广播给所有客户端xx进入聊天室
             case 'login_s':
                 // (未实现)通过session检测是否为真实客服,这个数据由页面那里放入redis中???
@@ -99,31 +103,31 @@ class Event
                 $name = htmlspecialchars( $message_data[ 'name' ] );
 
                 $_SESSION[ 'cid' ] = $message_data[ 'cid' ];
+                // 通过关联,获取客服的系统id
+                $_SESSION[ 'system_id' ] = 1;//先写默认值
                 $_SESSION[ 'name' ] = $name;
                 $_SESSION[ 'type' ] = 'server';
 
                 // 转播给全部在线客服端，xx进入聊天室 message {type:login, client_id:xx, name:xx}
                 $new_message = array( 'cmd' => $message_data[ 'cmd' ], 'client_id' => $client_id, 'cid' => $session_id, 'name' => $name, 'time' => date( 'Y-m-d H:i:s' ) );
                 // 记录在线客服 , 数据暂时没想好
-                self::setClient( $client_id, 'server', array() );
-                // 获取全部在线客服,进行广播
-                $all_agrents = self::getAllClients( 'server' );
-                Gateway::sendToAll( json_encode( $new_message ), array_keys( $all_agrents ) );
-                $_SESSION['onLine'] = self::distribution( 'serverOn', $client_id );//起始状态分配的用户
+                self::setClient( $client_id, 'server', $_SESSION );
+
+                $_SESSION[ 'onLine' ] = self::distribution( 'serverOn', $client_id );//起始状态分配的用户
                 return;
             case 'getOnline':
                 // 获取全部在线用户
                 $all_clients = self::getAllClients( 'client' );
 //                var_dump($all_clients);
-                $online = $_SESSION['onLine'];
-                if(empty($online)){
+                $online = $_SESSION[ 'onLine' ];
+                if ( empty( $online ) ) {
                     $online = array();
                 }
-                $online = array_flip($online);
+                $online = array_flip( $online );
 //                var_dump($online);
-                $all_clients = array_intersect_key($all_clients, $online);
+                $all_clients = array_intersect_key( $all_clients, $online );
 //                var_dump($all_clients);
-                if(empty($all_clients)){
+                if ( empty( $all_clients ) ) {
                     $all_clients = array();
                 }
 //                var_dump($all_clients);
@@ -135,9 +139,17 @@ class Event
 
                 return;
             case 'message_s':
-                return Gateway::sendToClient( $message_data[ 'to' ], json_encode( $message_data ) );
+                $message_data['time'] = date('Y-m-d H:i:s');
+                self::history( 'set', $message_data );
 
-//                return Gateway::sendToAll( json_encode( $new_message ), $all_agrents );
+                return Gateway::sendToClient( $message_data[ 'to' ], json_encode( $message_data ) );
+            case 'getHistory':
+                $history = array( 'cmd' => 'history', 'fd' => $message_data[ 'fd' ], 'offset' => $message_data[ 'offset' ], 'open_id' => $message_data[ 'open_id' ] );
+                $log = self::history( 'get', $history );
+                $history[ 'data' ] = $log;
+
+                return Gateway::sendToClient( $client_id, json_encode( $history ) );
+
         }
     }
 
@@ -200,6 +212,7 @@ class Event
         }
 
         $store = Store::instance( 'dialog' );
+
         return $store->HGET( $key, $client_id );
     }
 
@@ -262,7 +275,7 @@ class Event
      *
      * @return mix $client_id 返回分配的对应id或其他
      */
-    public static function distribution( $env, $client_id ,$message = '')
+    public static function distribution( $env, $client_id, $message = '' )
     {
         $store = Store::instance( 'dialog' );
         $user_to_server = 'wiz_user_to_server-';//type:string
@@ -280,10 +293,10 @@ class Event
                     }
                     $return = array_keys( $server_users, min( $server_users ) );
                     $return = current( $return );
-                } elseif(count($servers) == 1) {
+                } elseif ( count( $servers ) == 1 ) {
                     // 只有一个就不用算了.
                     $return = key( $servers );
-                }elseif(count($servers) == 0){
+                } elseif ( count( $servers ) == 0 ) {
                     // 没人上班的情况
                     $return = 0;
                 }
@@ -292,9 +305,14 @@ class Event
                 $store->set( $user_to_server . $client_id, $return );
 
                 // 取得用户信息
-                $client_info = self::getClient($client_id , 'client' );
-                $new_message = array( 'cmd' => 'login', 'fd' => $client_info['fd'], 'open_id' => $client_info['open_id'], 'name' => $client_info['name'], 'time' => date( 'Y-m-d H:i:s' ) );
-                Gateway::sendToClient($return , json_encode($new_message));
+                $client_info = self::getClient( $client_id, 'client' );
+                $new_message = array( 'cmd' => 'login', 'fd' => $client_info[ 'fd' ], 'open_id' => $client_info[ 'open_id' ], 'name' => $client_info[ 'name' ], 'time' => date( 'Y-m-d H:i:s' ) );
+                Gateway::sendToClient( $return, json_encode( $new_message ) );
+                $history = array( 'cmd' => 'history', 'fd' => $client_info[ 'fd' ], 'name' => $client_info[ 'name' ], 'offset' => 0, 'open_id' => $client_info[ 'open_id' ] );
+                $log = self::history( 'get', $history );
+                $history[ 'data' ] = $log;
+                Gateway::sendToClient( $return, json_encode( $history ) );
+
                 return $return;
                 break;
             case 'userOff':
@@ -309,15 +327,16 @@ class Event
                 // 客服上线,记录资源,这个在self::setClient中已处理
                 $store->del( $server_to_user . $client_id );//清理以前的旧数据
                 //分配全部给0的用户
-                $server0 = $store->SMEMBERS( $server_to_user.'0');
+                $server0 = $store->SMEMBERS( $server_to_user . '0' );
 //                var_dump($server0);
-                if(count($server0) != 0){
+                if ( count( $server0 ) != 0 ) {
                     foreach ( $server0 as $user ) {
                         // 重新分配用户到server
                         self::distribution( 'userOn', $user );
                     }
-                    $store->del($server_to_user.'0');
+                    $store->del( $server_to_user . '0' );
                 }
+
                 return $server0;
                 break;
             case 'serverOff':
@@ -341,6 +360,62 @@ class Event
         }
 
         return FALSE;
+    }
+
+    // 获取/设置聊天记录
+    public static function history( $env, $data, $server_id = 0 )
+    {
+        $db = Db::instance( 'log' );
+        if ( !isset( $data[ 'limit' ] ) ) {
+            $data[ 'limit' ] = 10;
+        }
+        switch ( $env ) {
+            case 'get':
+                //获取记录
+                // 查询数据,并发送服务端 - 注意放Sql注入!!!
+                $where = " openid = '{$data['open_id']}' ";
+                if ( $data[ 'offset' ] > 0 ) {
+                    $where .= " AND id < {$data['offset']} ";
+                }
+                $sql = "SELECT * FROM wiz_wechat_im_log WHERE {$where} ORDER BY id DESC LIMIT {$data['limit']} ";
+                $result = $db->query( $sql );
+
+                return $result;
+
+                break;
+            case 'set':
+                // 通过$server_id 查询对应客服数据
+                if ( $data[ 'type' ] == 'client' ) {
+                    $send_type = 1;
+                    $server = self::getClient( $server_id, 'server' );
+                    if ( !isset( $server[ 'system_id' ] ) ) {
+                        $server_id = 0;
+                    } else {
+                        $server_id = $server[ 'system_id' ];
+                    }
+                    $open_id = $data[ 'open_id' ];
+                } else {
+                    $send_type = 0;
+                    $server_id = $_SESSION['system_id'];
+                    $client = self::getClient( $data['to'], 'client' );
+                    if ( !isset( $client[ 'open_id' ] ) ) {
+                        $open_id = 'unknown';
+                    } else {
+                        $open_id = $client[ 'open_id' ];
+                    }
+                }
+                $cols = array(
+                    'msgType'  => 0,// 这个参数是做什么来的?
+                    'sendType' => $send_type,
+                    'content'  => $data[ 'data' ],
+                    'openId'   => $open_id,
+                    'server'   => $server_id,//客服id?
+                    'sendAt'   => $data[ 'time' ],
+                );
+//                var_dump( $cols );
+                $db->insert('wiz_wechat_im_log')->cols($cols)->query();
+                break;
+        }
     }
 
 
