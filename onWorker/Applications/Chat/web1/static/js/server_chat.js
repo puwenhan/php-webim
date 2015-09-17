@@ -89,7 +89,7 @@ function listenEvent() {
         if (confirm("聊天服务器已关闭")) {
             //alert('您已退出聊天室');
             // location.href = 'server.html';
-            location.reload();
+            //location.reload();
             // 尝试每几秒重新连接服务器??
         }
     };

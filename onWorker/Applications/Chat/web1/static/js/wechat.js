@@ -61,9 +61,10 @@ function listenEvent() {
      * 连接关闭事件
      */
     ws.onclose = function (e) {
+        alert("对话已关闭");
         if (confirm("聊天服务器已关闭")) {
             //alert('您已退出聊天室');
-            location.href = 'user.html';
+            //location.href = 'user.html';
         }
     };
 

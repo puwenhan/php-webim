@@ -65,10 +65,10 @@ class Event
                 // 获取全部在线客服,进行广播
 //                $all_agrents = self::getAllClients( 'server' );
 
-                // 多客服,需要有个分配用户的逻辑
+                // 多客服,需要有个分配用户的逻辑,同时发送数据通知用户上线
                 self::distribution( 'userOn', $client_id, json_encode( $new_message ) );
-//                    Gateway::sendToClient( $server_id, json_encode( $new_message ) );//通知客服用户上线
-                $message = array( 'cmd' => 'message', 'data' => '客服自动回复内容!' );
+
+                $message = array( 'cmd' => 'message', 'data' => '您好!请问有什么可以帮您?' );
                 Gateway::sendToCurrentClient( json_encode( $message ) );
 
                 //这里可以加些欢迎提示语
@@ -96,15 +96,23 @@ class Event
                 return Gateway::sendToClient( $server_id, json_encode( $message ) );
             // 服务端登录 message格式: {type:login, name:xx, room_id:1} ，添加到客户端，广播给所有客户端xx进入聊天室
             case 'login_s':
-                // (未实现)通过session检测是否为真实客服,这个数据由页面那里放入redis中???
-
                 $session_id = $message_data[ 'cid' ];
-                // 把昵称,open_id放到session中
-                $name = htmlspecialchars( $message_data[ 'name' ] );
+                // 验证一下,如果没有则不能使用客服身份登陆!
+                $store = Store::instance( 'dialog' );
+                $key = "wiz_server_name_{$session_id}";
+                $session = json_decode( $store->get( $key ), TRUE );
+                if ( $session == FALSE || !isset($session['name']) || !isset($session['id'])) {
+                    // 非法使用客服身份登陆,服务器将禁止
+                    return Gateway::closeClient( $client_id );
+                }
 
-                $_SESSION[ 'cid' ] = $message_data[ 'cid' ];
+
+                // 把昵称,open_id放到session中
+                $name = $session['name'];
+
+                $_SESSION[ 'cid' ] = $session_id;
                 // 通过关联,获取客服的系统id
-                $_SESSION[ 'system_id' ] = 1;//先写默认值
+                $_SESSION[ 'system_id' ] = $session['id'];//先写默认值
                 $_SESSION[ 'name' ] = $name;
                 $_SESSION[ 'type' ] = 'server';
 
